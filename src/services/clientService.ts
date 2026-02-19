@@ -4,9 +4,10 @@ import { StorageHubClient } from '@storagehub-sdk/core';
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { types } from '@storagehub/types-bundle';
 import { NETWORK, chain } from '../config/networks.js';
+import 'dotenv/config';
 
 // Create Viem clients
-const account = privateKeyToAccount('INSERT_PRIVATE_KEY' as `0x${string}`);
+const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`);
 const address = account.address;
 
 // Create wallet client for signing transactions

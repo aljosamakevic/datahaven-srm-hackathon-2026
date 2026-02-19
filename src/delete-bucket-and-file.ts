@@ -9,8 +9,8 @@ async function run() {
   // Initialize WASM
   await initWasm();
 
-  const bucketId = 'INSERT_BUCKET_ID'; // `0x${string}`
-  const fileKey = 'INSERT_FILE_KEY'; // `0x${string}`
+  const bucketId = '0xb03fd846131364618b5b66c60b49f2cf1f044c30a9720dca22cc6e8956ac0816'; // `0x${string}`
+  const fileKey = '0x3029d55a4d6be8ad68da5e5c274b6f37c63b3775b2f577ec65d920570532295e'; // `0x${string}`
   // If not in hex already, convert it with .toHex()
 
   // Authenticate

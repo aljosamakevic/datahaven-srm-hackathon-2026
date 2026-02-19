@@ -19,6 +19,7 @@
     "@storagehub-sdk/msp-client": "^0.4.4",
     "@storagehub/api-augment": "^0.2.14",
     "@storagehub/types-bundle": "^0.2.9",
+    "dotenv": "^17.3.1",
     "viem": "^2.46.2"
   },
   "devDependencies": {

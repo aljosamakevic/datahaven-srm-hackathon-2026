@@ -23,7 +23,7 @@ async function run() {
   console.log('MSP Health Status:', mspHealth);
 
   // 2. Create Bucket
-  const bucketName = 'init-bucket';
+  const bucketName = 'init-bucket-hackathon-3';
   const { bucketId, txReceipt } = await createBucket(bucketName);
   console.log(`Created Bucket ID: ${bucketId}`);
   console.log(`createBucket() txReceipt: ${txReceipt}`);

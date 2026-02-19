@@ -15,10 +15,10 @@ async function run() {
   // Add your bucket ID here from the bucket you created earlier
   // Example (32byte hash):
   // 0xdd2148ff63c15826ab42953a9d214770e6c8a73b22b83d28819a1777ab9d1322
-  const bucketId = 'INSERT_BUCKET_ID';
+  const bucketId = '0x014f9a71dd2d5e695d95401325296bddfa5e62513dd045d2a5b5e4966a6cbdf6';
 
   // Specify the file name of the file to be uploaded
-  const fileName = 'INSERT_FILE_NAME'; // Example: filename.jpeg
+  const fileName = 'bruce-the-moose.png'; // Example: filename.jpeg
   const filePath = new URL(`./files/${fileName}`, import.meta.url).pathname;
 
   // --- File Manipulation ---
@@ -38,7 +38,7 @@ async function run() {
   console.log(`Fingerprint: ${fingerprint.toHex()}`);
 
   const fileSizeBigInt = BigInt(fileManager.getFileSize());
-  console.log(`File size: ${fileSize} bytes`);
+  console.log(`File size in BigInt: ${fileSizeBigInt} bytes`);
 
   // Get MSP details
 

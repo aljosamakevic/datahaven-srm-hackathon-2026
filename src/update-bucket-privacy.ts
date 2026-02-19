@@ -6,7 +6,7 @@ import { verifyBucketCreation, updateBucketPrivacy } from './operations/bucketOp
 async function run() {
   await initWasm();
 
-  const bucketId = '0xf7c6f9e65cac2166f32e0c0b141166a967d056957f64d973df0b1f744141d02a';
+  const bucketId = '0xbb8ae6defce53e70d1b4b9cb1bcb25253fe35c5f515e294fd38c1330898c9f03';
 
   // 1. Update bucket privacy to private
   await updateBucketPrivacy(bucketId, true);
