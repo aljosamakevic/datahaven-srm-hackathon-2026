@@ -1,7 +1,7 @@
 node_modules
 dist
 .env
-files/bruce-the-moose-downloaded.png
+src/files/bruce-the-moose-downloaded.png
 
 .github/instructions/kluster-code-verify.instructions.md
 .kluster
