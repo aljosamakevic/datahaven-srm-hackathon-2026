@@ -43,6 +43,7 @@ export async function uploadFile(bucketId: string, filePath: string, fileName: s
     size: fileSize,
     stream: () => Readable.toWeb(createReadStream(filePath)) as ReadableStream<Uint8Array>,
   });
+  const bucketFilePath = 'reports/Q1/' + fileName; // this is the "path within the bucket" where the file will be stored
 
   // The fingerprint is a content hash of the file (like a checksum).
   // It's stored on-chain so anyone can verify the file's integrity later.
@@ -86,7 +87,7 @@ export async function uploadFile(bucketId: string, filePath: string, fileName: s
   // The chain records the intent. The MSP will pick it up and store the actual bytes.
   const txHash: `0x${string}` | undefined = await storageHubClient.issueStorageRequest(
     bucketId as `0x${string}`,
-    fileName,
+    bucketFilePath,
     fingerprint.toHex() as `0x${string}`,
     fileSizeBigInt,
     mspId as `0x${string}`,
@@ -116,7 +117,7 @@ export async function uploadFile(bucketId: string, filePath: string, fileName: s
   const registry = new TypeRegistry();
   const owner = registry.createType('AccountId20', account.address) as AccountId20;
   const bucketIdH256 = registry.createType('H256', bucketId) as H256;
-  const fileKey = await fileManager.computeFileKey(owner, bucketIdH256, fileName);
+  const fileKey = await fileManager.computeFileKey(owner, bucketIdH256, bucketFilePath);
 
   // Verify storage request on chain
   const storageRequest = await polkadotApi.query.fileSystem.storageRequests(fileKey);
@@ -147,7 +148,7 @@ export async function uploadFile(bucketId: string, filePath: string, fileName: s
     fileKey.toHex(),
     await fileManager.getFileBlob(),
     address,
-    fileName
+    bucketFilePath
   );
   console.log('File upload receipt:', uploadReceipt);
 
@@ -342,6 +343,6 @@ export async function requestDeleteFile(bucketId: string, fileKey: string): Prom
     throw new Error(`File deletion failed: ${txHashRequestDeleteFile}`);
   }
 
-  console.log(`File with key ${fileKey} deleted successfully from bucket ${bucketId}`);
+  console.log(`File deletion request with key ${fileKey} from bucket ${bucketId} was initiated successfully on-chain.`);
   return true;
 }

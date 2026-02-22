@@ -30,7 +30,7 @@ async function run() {
 
   // Step 2 — Create a bucket.
   // Change this name to something unique if the bucket already exists.
-  const bucketName = 'init-bucket-hackathon';
+  const bucketName = 'INSERT-UNIQUE-NAME-HERE';
   const { bucketId, txReceipt } = await createBucket(bucketName);
   console.log(`Created Bucket ID: ${bucketId}`);
   console.log(`createBucket() txReceipt: ${txReceipt}`);

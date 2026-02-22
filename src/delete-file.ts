@@ -24,8 +24,8 @@ async function run() {
   await initWasm();
 
   // Replace these with your actual bucket ID and file key.
-  const bucketId = '0xb03fd846131364618b5b66c60b49f2cf1f044c30a9720dca22cc6e8956ac0816'; // `0x${string}`
-  const fileKey = '0x3029d55a4d6be8ad68da5e5c274b6f37c63b3775b2f577ec65d920570532295e'; // `0x${string}`
+  const bucketId = 'INSERT-UNIQUE-BUCKET-ID-HERE'; // `0x${string}`
+  const fileKey = 'INSERT-UNIQUE-FILE-KEY-HERE'; // `0x${string}`
 
   // File deletion requires SIWE authentication because it's a
   // privileged operation — only the bucket owner can delete files.

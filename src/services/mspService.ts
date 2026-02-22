@@ -78,6 +78,7 @@ const authenticateUser = async (): Promise<UserInfo> => {
 // Here we just grab the first available one for simplicity.
 const getValueProps = async (): Promise<`0x${string}`> => {
   const valueProps: ValueProp[] = await mspClient.info.getValuePropositions();
+  console.log('Available MSP Value Propositions:', valueProps);
   if (!Array.isArray(valueProps) || valueProps.length === 0) {
     throw new Error('No value propositions available from MSP');
   }

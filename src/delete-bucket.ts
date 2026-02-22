@@ -23,7 +23,7 @@ async function run() {
   await initWasm();
 
   // Replace with your bucket ID.
-  const bucketId = '0xb03fd846131364618b5b66c60b49f2cf1f044c30a9720dca22cc6e8956ac0816'; // `0x${string}`
+  const bucketId = 'INSERT-UNIQUE-BUCKET-ID-HERE'; // `0x${string}`
 
   const authProfile = await authenticateUser();
   console.log('Authenticated user profile:', authProfile);

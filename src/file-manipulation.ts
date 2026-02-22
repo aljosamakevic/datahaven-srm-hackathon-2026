@@ -32,7 +32,7 @@ async function run() {
 
   // Paste a bucket ID you created earlier (from create-bucket.ts output).
   // This must be an existing bucket that belongs to your wallet.
-  const bucketId = '0x014f9a71dd2d5e695d95401325296bddfa5e62513dd045d2a5b5e4966a6cbdf6';
+  const bucketId = 'INSERT-UNIQUE-BUCKET-ID-HERE'; // `0x${string}`
 
   const fileName = 'bruce-the-moose.png';
   const filePath = new URL(`./files/${fileName}`, import.meta.url).pathname;

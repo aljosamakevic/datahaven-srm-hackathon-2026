@@ -24,7 +24,7 @@ async function run() {
   await initWasm();
 
   // Replace with your bucket ID.
-  const bucketId = '0xbb8ae6defce53e70d1b4b9cb1bcb25253fe35c5f515e294fd38c1330898c9f03';
+  const bucketId = 'INSERT-UNIQUE-BUCKET-ID-HERE'; // `0x${string}`
 
   // Set to true for private, false for public.
   await updateBucketPrivacy(bucketId, true);

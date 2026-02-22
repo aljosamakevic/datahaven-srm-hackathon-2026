@@ -43,7 +43,7 @@ async function run() {
   // ── Step 2: Create Bucket ──
   // Change this name each time you run the script — bucket names
   // must be unique per wallet (the ID is derived from address + name).
-  const bucketName = 'init-bucket-hackathon-3';
+  const bucketName = 'INSERT-UNIQUE-NAME-HERE';
   const { bucketId, txReceipt } = await createBucket(bucketName);
   console.log(`Created Bucket ID: ${bucketId}`);
   console.log(`createBucket() txReceipt: ${txReceipt}`);
