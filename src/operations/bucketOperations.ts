@@ -11,6 +11,30 @@ import { getMspInfo, getValueProps, mspClient } from '../services/mspService.js'
 import { Bucket, FileListResponse } from '@storagehub-sdk/msp-client';
 import fileSystemAbi from '../abi/FileSystemABI.json' with { type: 'json' };
 
+// ============================================================================
+// Bucket Operations
+// ============================================================================
+// A "bucket" is a named container for files — similar to an S3 bucket.
+// Buckets are created ON-CHAIN via the StorageHub SDK, then the MSP backend
+// indexes them so you can upload files into them.
+//
+// Key pattern you'll see throughout:
+//   1. Send a transaction (on-chain)
+//   2. Wait for tx receipt (confirmation)
+//   3. Poll the MSP backend until it has indexed the change
+//
+// This two-step "on-chain then off-chain" pattern is fundamental to DataHaven.
+// ============================================================================
+
+// createBucket()
+// Creates a new storage bucket. This is the first thing you do before uploading files.
+// Steps:
+//   1. Fetch MSP info (we need mspId to tell the chain which provider stores our data)
+//   2. Pick a value proposition (storage plan)
+//   3. Derive the bucket ID deterministically from (owner address + bucket name)
+//   4. Check the bucket doesn't already exist (idempotency guard)
+//   5. Submit the createBucket transaction
+//   6. Wait for on-chain confirmation
 export async function createBucket(bucketName: string) {
   // Get basic MSP information from the MSP including its ID
   const { mspId } = await getMspInfo();
@@ -19,11 +43,13 @@ export async function createBucket(bucketName: string) {
   const valuePropId = await getValueProps();
   console.log(`Value Prop ID: ${valuePropId}`);
 
-  // Derive bucket ID
+  // Bucket IDs are deterministic — derived from (owner address + bucket name).
+  // This means the same wallet + name always produces the same bucket ID.
   const bucketId = (await storageHubClient.deriveBucketId(address, bucketName)) as string;
   console.log(`Derived bucket ID: ${bucketId}`);
 
-  // Check that the bucket doesn't exist yet
+  // We query the Substrate storage directly to check if this bucket exists.
+  // polkadotApi.query.providers.buckets() reads the on-chain "Buckets" storage map.
   const bucketBeforeCreation = await polkadotApi.query.providers.buckets(bucketId);
   console.log('Bucket before creation is empty', bucketBeforeCreation.isEmpty);
   if (!bucketBeforeCreation.isEmpty) {
@@ -32,7 +58,8 @@ export async function createBucket(bucketName: string) {
 
   const isPrivate = false;
 
-  // Create bucket on chain
+  // storageHubClient.createBucket() sends an EVM transaction to the
+  // FileSystem precompile. It returns a tx hash that we then wait on for confirmation.
   const txHash: `0x${string}` | undefined = await storageHubClient.createBucket(
     mspId as `0x${string}`,
     bucketName,
@@ -57,7 +84,10 @@ export async function createBucket(bucketName: string) {
   return { bucketId, txReceipt };
 }
 
-// Verify bucket creation on chain and return bucket data
+// verifyBucketCreation()
+// After a bucket is created on-chain, we can read it back from Substrate storage
+// to confirm the owner and MSP match what we expect. This uses the Polkadot API
+// (not viem) because the Substrate storage maps provide richer data.
 export async function verifyBucketCreation(bucketId: string) {
   const { mspId } = await getMspInfo();
 
@@ -72,7 +102,12 @@ export async function verifyBucketCreation(bucketId: string) {
   return bucketData;
 }
 
-// Wait until the backend/indexer has indexed the newly created bucket
+// waitForBackendBucketReady()
+// The MSP backend runs an indexer that watches the chain for new events.
+// After a bucket is created on-chain, there's a short delay before the MSP
+// knows about it. This function polls the MSP's REST API until the bucket appears.
+// This is the "sync gap" between on-chain and off-chain — a common pattern in
+// blockchain + backend architectures.
 export async function waitForBackendBucketReady(bucketId: string) {
   const maxAttempts = 10; // Number of polling attempts
   const delayMs = 2000; // Delay between attempts in milliseconds
@@ -146,6 +181,9 @@ export async function waitForBackendBucketEmpty(bucketId: string) {
   throw new Error(`Bucket ${bucketId} not empty in MSP backend after waiting`);
 }
 
+// deleteBucket()
+// Deletes a bucket on-chain. The bucket MUST be empty (no files) before deletion.
+// If you try to delete a bucket with files, the transaction will revert.
 export async function deleteBucket(bucketId: string): Promise<boolean> {
   const txHash: `0x${string}` | undefined = await storageHubClient.deleteBucket(bucketId as `0x${string}`);
   console.log('deleteBucket() txHash:', txHash);
@@ -165,6 +203,13 @@ export async function deleteBucket(bucketId: string): Promise<boolean> {
   return true;
 }
 
+// updateBucketPrivacy()
+// Toggles a bucket between public and private. Private buckets require SIWE
+// authentication before files can be downloaded.
+//
+// NOTE: This function calls the FileSystem precompile DIRECTLY via walletClient.writeContract()
+// instead of using storageHubClient. This shows that you can always fall back to raw
+// contract calls using the ABI when the SDK doesn't expose a convenience method.
 export async function updateBucketPrivacy(bucketId: string, isPrivate: boolean): Promise<boolean> {
   // Update bucket privacy on chain by calling the FileSystem precompile directly
   const txHash = await walletClient.writeContract({

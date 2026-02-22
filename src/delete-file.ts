@@ -1,3 +1,18 @@
+// ============================================================================
+// Delete File Demo
+// ============================================================================
+// Run: pnpm tsx src/delete-file.ts
+//
+// Demonstrates how to delete a file from a bucket:
+//   1. Authenticate via SIWE (required for file operations)
+//   2. List buckets and files to confirm what exists
+//   3. Submit a file deletion request (on-chain transaction)
+//   4. Wait for the MSP backend to process the deletion
+//
+// IMPORTANT: Update bucketId and fileKey below with values from your
+// previous upload. You can find these in the output of end-to-end.ts.
+// ============================================================================
+
 import '@storagehub/api-augment';
 import { initWasm } from '@storagehub-sdk/core';
 import { polkadotApi } from './services/clientService.js';
@@ -6,31 +21,32 @@ import { getBucketFilesFromMSP, requestDeleteFile } from './operations/fileOpera
 import { deleteBucket, getBucketsFromMSP, waitForBackendBucketEmpty } from './operations/bucketOperations.js';
 
 async function run() {
-  // Initialize WASM
   await initWasm();
 
+  // Replace these with your actual bucket ID and file key.
   const bucketId = '0xb03fd846131364618b5b66c60b49f2cf1f044c30a9720dca22cc6e8956ac0816'; // `0x${string}`
   const fileKey = '0x3029d55a4d6be8ad68da5e5c274b6f37c63b3775b2f577ec65d920570532295e'; // `0x${string}`
-  // If not in hex already, convert it with .toHex()
 
-  // Authenticate
+  // File deletion requires SIWE authentication because it's a
+  // privileged operation — only the bucket owner can delete files.
   const authProfile = await authenticateUser();
   console.log('Authenticated user profile:', authProfile);
 
-  // Get buckets from MSP
+  // List what we have before deleting, so we can see the before/after.
   const buckets = await getBucketsFromMSP();
   console.log('Buckets in MSP:', buckets);
 
-  // Get bucket files from MSP
   const files = await getBucketFilesFromMSP(bucketId);
   console.log(`Files in bucket with ID ${bucketId}:`);
   console.log(JSON.stringify(files, null, 2));
 
-  // Request file deletion
+  // requestDeleteFile() sends an on-chain transaction.
+  // The MSP then removes the file data after confirming the deletion on-chain.
   const isDeletionRequestSuccessful = await requestDeleteFile(bucketId, fileKey);
   console.log('File deletion request submitted successfully:', isDeletionRequestSuccessful);
 
-  // Wait for backend to process deletion and verify bucket is empty
+  // Wait until the MSP has processed the deletion.
+  // This is needed if you plan to delete the bucket next — buckets must be empty.
   await waitForBackendBucketEmpty(bucketId);
 
   await polkadotApi.disconnect();

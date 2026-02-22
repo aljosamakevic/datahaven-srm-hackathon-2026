@@ -1,3 +1,23 @@
+// ============================================================================
+// Step-by-Step File Manipulation Demo
+// ============================================================================
+// Run: pnpm tsx src/file-manipulation.ts
+//
+// Unlike end-to-end.ts which uses the high-level uploadFile() helper,
+// this script breaks down the file upload process into individual steps
+// so you can see each piece in isolation:
+//
+//   Step 1: Initialize FileManager (wraps the file stream)
+//   Step 2: Compute fingerprint + gather MSP details
+//   Step 3: Issue a storage request on-chain
+//   Step 4: Compute the file key
+//   Step 5: Read the storage request data back from chain
+//
+// NOTE: This script does NOT upload the file bytes to the MSP. It only
+// issues the on-chain storage request. To complete the upload, you'd need
+// to authenticate via SIWE and call mspClient.files.uploadFile().
+// ============================================================================
+
 import '@storagehub/api-augment';
 import { FileManager, initWasm, ReplicationLevel } from '@storagehub-sdk/core';
 import { polkadotApi, storageHubClient, publicClient, account } from './services/clientService.js';
@@ -8,40 +28,34 @@ import { TypeRegistry } from '@polkadot/types';
 import { AccountId20, H256 } from '@polkadot/types/interfaces';
 
 async function run() {
-  // For anything from @storagehub-sdk/core to work, initWasm() is required
-  // on top of the file
   await initWasm();
 
-  // Add your bucket ID here from the bucket you created earlier
-  // Example (32byte hash):
-  // 0xdd2148ff63c15826ab42953a9d214770e6c8a73b22b83d28819a1777ab9d1322
+  // Paste a bucket ID you created earlier (from create-bucket.ts output).
+  // This must be an existing bucket that belongs to your wallet.
   const bucketId = '0x014f9a71dd2d5e695d95401325296bddfa5e62513dd045d2a5b5e4966a6cbdf6';
 
-  // Specify the file name of the file to be uploaded
-  const fileName = 'bruce-the-moose.png'; // Example: filename.jpeg
+  const fileName = 'bruce-the-moose.png';
   const filePath = new URL(`./files/${fileName}`, import.meta.url).pathname;
 
-  // --- File Manipulation ---
-
-  // Step 1: Initialize FileManager
+  // ── Step 1: Initialize FileManager ──
+  // FileManager wraps a file as a lazy stream. The stream factory
+  // pattern means the file isn't read into memory until needed.
   const fileSize = statSync(filePath).size;
   const fileManager = new FileManager({
     size: fileSize,
     stream: () => Readable.toWeb(createReadStream(filePath)) as ReadableStream<Uint8Array>,
   });
 
-  // Step 2: Create Fingerprint and Remaining Storage Request Parameters
-
-  // Get file details
-
+  // ── Step 2: Compute Fingerprint and Gather Parameters ──
+  // The fingerprint is a content-addressable hash of the file.
+  // It's stored on-chain alongside the storage request.
   const fingerprint = await fileManager.getFingerprint();
   console.log(`Fingerprint: ${fingerprint.toHex()}`);
 
   const fileSizeBigInt = BigInt(fileManager.getFileSize());
   console.log(`File size in BigInt: ${fileSizeBigInt} bytes`);
 
-  // Get MSP details
-
+  // We need the MSP's ID and peer IDs for the storage request parameters.
   // Fetch MSP details from the backend (includes its on-chain ID and libp2p addresses)
   const { mspId, multiaddresses } = await getMspInfo();
   // Ensure the MSP exposes at least one multiaddress (required to reach it over libp2p)
@@ -68,7 +82,10 @@ async function run() {
   const replicationLevel = ReplicationLevel.Custom;
   const replicas = 1;
 
-  // Step 3: Issue Storage Request
+  // ── Step 3: Issue Storage Request ──
+  // This on-chain transaction says "I want to store this file".
+  // All parameters (bucket, name, fingerprint, size, MSP, peers, replicas)
+  // are encoded and sent as a single EVM transaction.
   const txHash: `0x${string}` | undefined = await storageHubClient.issueStorageRequest(
     bucketId as `0x${string}`,
     fileName,
@@ -94,19 +111,24 @@ async function run() {
   }
   console.log('issueStorageRequest() txReceipt:', receipt);
 
-  // Step 4: Compute the File Key
+  // ── Step 4: Compute the File Key ──
+  // The file key uniquely identifies a file in the network.
+  // It's derived from (owner address + bucket ID + file name) using WASM.
+  // This same key is used to query, download, and delete the file.
   const registry = new TypeRegistry();
   const owner = registry.createType('AccountId20', account.address) as AccountId20;
   const bucketIdH256 = registry.createType('H256', bucketId) as H256;
   const fileKey = await fileManager.computeFileKey(owner, bucketIdH256, fileName);
 
-  // Step 5: Retrieve Storage Request Data
+  // ── Step 5: Retrieve Storage Request Data ──
+  // We read the storage request back from the chain to verify
+  // it was recorded correctly. This uses the Polkadot API (Substrate side).
   const storageRequest = await polkadotApi.query.fileSystem.storageRequests(fileKey);
   if (!storageRequest.isSome) {
     throw new Error('Storage request not found on chain');
   }
 
-  // Step 6: Read the storage request data
+  // .unwrap().toHuman() converts the Substrate codec type to a plain JS object.
   const storageRequestData = storageRequest.unwrap().toHuman();
   console.log('Storage request data:', storageRequestData);
 

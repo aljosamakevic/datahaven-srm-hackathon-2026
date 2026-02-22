@@ -9,26 +9,51 @@ import { DownloadResult, FileListResponse } from '@storagehub-sdk/msp-client';
 import { PalletFileSystemStorageRequestMetadata } from '@polkadot/types/lookup';
 import { storageHubClient, publicClient } from '../services/clientService.js';
 
-export async function uploadFile(bucketId: string, filePath: string, fileName: string) {
-  //   ISSUE STORAGE REQUEST
+// ============================================================================
+// File Operations
+// ============================================================================
+// File upload is the most involved operation in DataHaven. It spans BOTH layers:
+//
+//   ON-CHAIN (via storageHubClient):
+//     1. Issue a "storage request" — tells the network you want to store a file
+//     2. The chain records the file's fingerprint, size, and target MSP
+//
+//   OFF-CHAIN (via mspClient):
+//     3. Authenticate with the MSP via SIWE
+//     4. Upload the actual file bytes to the MSP backend
+//     5. The MSP confirms on-chain that it received the file
+//     6. BSPs (Backup Storage Providers) replicate the file for redundancy
+//
+// Downloads are simpler — just fetch the file stream from the MSP backend.
+// ============================================================================
 
-  // Set up FileManager
+// uploadFile()
+// The complete upload flow in one function. Three phases:
+//   Phase 1: Issue storage request on-chain (registers intent to store)
+//   Phase 2: Verify the storage request exists on-chain
+//   Phase 3: Authenticate with MSP and upload the actual file bytes
+export async function uploadFile(bucketId: string, filePath: string, fileName: string) {
+  // ── Phase 1: Issue Storage Request ──
+
+  // FileManager is the SDK's file abstraction. It wraps a file stream
+  // and provides methods to compute fingerprints, file keys, and get file blobs.
+  // The stream factory pattern (a function returning a stream) allows re-reading.
   const fileSize = statSync(filePath).size;
   const fileManager = new FileManager({
     size: fileSize,
     stream: () => Readable.toWeb(createReadStream(filePath)) as ReadableStream<Uint8Array>,
   });
 
-  // Get file details
-
+  // The fingerprint is a content hash of the file (like a checksum).
+  // It's stored on-chain so anyone can verify the file's integrity later.
   const fingerprint = await fileManager.getFingerprint();
   console.log(`Fingerprint: ${fingerprint.toHex()}`);
 
   const fileSizeBigInt = BigInt(fileManager.getFileSize());
   console.log(`File size: ${fileSize} bytes`);
 
-  // Get MSP details
-
+  // We need the MSP's on-chain ID and its libp2p peer IDs.
+  // The peer IDs are how the network knows where to find this MSP over P2P.
   // Fetch MSP details from the backend (includes its on-chain ID and libp2p addresses)
   const { mspId, multiaddresses } = await getMspInfo();
   // Ensure the MSP exposes at least one multiaddress (required to reach it over libp2p)
@@ -55,7 +80,10 @@ export async function uploadFile(bucketId: string, filePath: string, fileName: s
   const replicationLevel = ReplicationLevel.Custom;
   const replicas = 1;
 
-  // Issue storage request
+  // issueStorageRequest() sends a transaction that says:
+  // "I want to store this file (identified by fingerprint + size) in this bucket,
+  //  with this MSP, at this replication level."
+  // The chain records the intent. The MSP will pick it up and store the actual bytes.
   const txHash: `0x${string}` | undefined = await storageHubClient.issueStorageRequest(
     bucketId as `0x${string}`,
     fileName,
@@ -80,9 +108,11 @@ export async function uploadFile(bucketId: string, filePath: string, fileName: s
   }
   console.log('issueStorageRequest() txReceipt:', receipt);
 
-  //   VERIFY STORAGE REQUEST ON CHAIN
+  // ── Phase 2: Verify Storage Request On-Chain ──
 
-  // Compute file key
+  // The file key is a unique identifier derived from (owner + bucketId + fileName).
+  // It's how the chain and MSP refer to a specific file. We use Polkadot type registry
+  // to create properly typed inputs for the WASM computation.
   const registry = new TypeRegistry();
   const owner = registry.createType('AccountId20', account.address) as AccountId20;
   const bucketIdH256 = registry.createType('H256', bucketId) as H256;
@@ -103,13 +133,15 @@ export async function uploadFile(bucketId: string, filePath: string, fileName: s
     storageRequestData.fingerprint === fingerprint.toString()
   );
 
-  //   UPLOAD FILE TO MSP
+  // ── Phase 3: Upload File Bytes to MSP ──
 
-  // Authenticate bucket owner address with MSP prior to uploading file
+  // Before uploading, we must prove we own the wallet via SIWE.
+  // This prevents unauthorized uploads into someone else's bucket.
   const authProfile = await authenticateUser();
   console.log('Authenticated user profile:', authProfile);
 
-  // Upload file to MSP
+  // This is where the actual file data leaves your machine and goes to the MSP.
+  // The MSP receives: bucket ID, file key, file blob, owner address, and filename.
   const uploadReceipt = await mspClient.files.uploadFile(
     bucketId,
     fileKey.toHex(),
@@ -126,6 +158,10 @@ export async function uploadFile(bucketId: string, filePath: string, fileName: s
   return { fileKey, uploadReceipt };
 }
 
+// downloadFile()
+// Downloads are simpler than uploads — no on-chain transaction needed.
+// We just request the file stream from the MSP using the file key,
+// then pipe it to a local file.
 export async function downloadFile(
   fileKey: H256,
   downloadPath: string
@@ -165,7 +201,10 @@ export async function downloadFile(
   });
 }
 
-// Compares an original file with a downloaded file byte-for-byte
+// verifyDownload()
+// Byte-for-byte comparison to prove the downloaded file is identical to the original.
+// This is the integrity guarantee — the fingerprint stored on-chain ensures
+// that what you get back is exactly what you uploaded.
 export async function verifyDownload(originalPath: string, downloadedPath: string): Promise<boolean> {
   const originalBuffer = await import('node:fs/promises').then((fs) => fs.readFile(originalPath));
   const downloadedBuffer = await import('node:fs/promises').then((fs) => fs.readFile(downloadedPath));
@@ -173,6 +212,11 @@ export async function verifyDownload(originalPath: string, downloadedPath: strin
   return originalBuffer.equals(downloadedBuffer);
 }
 
+// waitForMSPConfirmOnChain()
+// After you upload a file, the MSP must confirm on-chain that it received it.
+// This function polls the on-chain storage request until the MSP's status
+// changes to "AcceptedNewFile" or "AcceptedExistingFile".
+// Until the MSP confirms, the file isn't considered stored by the network.
 export async function waitForMSPConfirmOnChain(fileKey: string) {
   const maxAttempts = 20; // Number of polling attempts
   const delayMs = 2000; // Delay between attempts in milliseconds
@@ -211,6 +255,14 @@ export async function waitForMSPConfirmOnChain(fileKey: string) {
   throw new Error('Timed out waiting for MSP confirmation on-chain');
 }
 
+// waitForBackendFileReady()
+// After the MSP confirms on-chain, the file still needs to be replicated by BSPs
+// (Backup Storage Providers) before it's considered fully stored.
+// This can take up to ~11 minutes. The file transitions through statuses:
+//   pending → ready    (success)
+//   pending → revoked  (user cancelled)
+//   pending → rejected (MSP refused)
+//   pending → expired  (BSPs didn't replicate in time)
 export async function waitForBackendFileReady(bucketId: string, fileKey: string) {
   // wait up to 12 minutes (144 attempts x 5 seconds)
   // 11 minutes is the amount of time BSPs have to reach the required replication level
@@ -267,6 +319,11 @@ export async function getBucketFilesFromMSP(bucketId: string): Promise<FileListR
   return files;
 }
 
+// requestDeleteFile()
+// File deletion is also a two-layer operation:
+//   1. Fetch file metadata from the MSP (needed for the signed deletion request)
+//   2. Submit a deletion transaction on-chain
+// The MSP then removes the file data after confirming the on-chain deletion.
 export async function requestDeleteFile(bucketId: string, fileKey: string): Promise<boolean> {
   // Get file info before deletion
   const fileInfo: FileInfo = await mspClient.files.getFileInfo(bucketId, fileKey);

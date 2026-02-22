@@ -1,3 +1,18 @@
+// ============================================================================
+// Delete Bucket Demo
+// ============================================================================
+// Run: pnpm tsx src/delete-bucket.ts
+//
+// Demonstrates how to delete an empty bucket:
+//   1. Authenticate via SIWE
+//   2. Fetch bucket metadata from the MSP
+//   3. Check that the bucket has no files (deletion will revert if not empty)
+//   4. Submit the deletion transaction on-chain
+//
+// IMPORTANT: Delete all files in the bucket FIRST (use delete-file.ts).
+// You cannot delete a bucket that still contains files.
+// ============================================================================
+
 import '@storagehub/api-augment';
 import { initWasm } from '@storagehub-sdk/core';
 import { polkadotApi } from './services/clientService.js';
@@ -5,17 +20,15 @@ import { authenticateUser } from './services/mspService.js';
 import { deleteBucket, getBucketFromMSP } from './operations/bucketOperations.js';
 
 async function run() {
-  // Initialize WASM
   await initWasm();
 
+  // Replace with your bucket ID.
   const bucketId = '0xb03fd846131364618b5b66c60b49f2cf1f044c30a9720dca22cc6e8956ac0816'; // `0x${string}`
-  // If not in hex already, convert it with .toHex()
 
-  // Authenticate
   const authProfile = await authenticateUser();
   console.log('Authenticated user profile:', authProfile);
 
-  // Get bucket from MSP
+  // Fetch bucket info from the MSP to check its file count.
   const bucket = await getBucketFromMSP(bucketId);
   console.log('Bucket:', bucket);
 
@@ -23,7 +36,8 @@ async function run() {
     throw new Error(`Bucket not found: ${bucketId}`);
   }
 
-  // Delete bucket
+  // Safety check — only delete if the bucket is empty.
+  // The on-chain transaction would revert anyway, but this saves gas.
   if (bucket.fileCount === 0) {
     const isBucketDeletionSuccessful = await deleteBucket(bucketId);
     console.log('Bucket deletion successful:', isBucketDeletionSuccessful);

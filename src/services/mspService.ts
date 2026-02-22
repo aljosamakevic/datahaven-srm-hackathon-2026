@@ -3,19 +3,34 @@ import { HttpClientConfig } from '@storagehub-sdk/core';
 import { address, walletClient } from './clientService.js';
 import { NETWORK } from '../config/networks.js';
 
-// Configure the HTTP client to point to the MSP backend
+// ============================================================================
+// MSP (Main Storage Provider) Service
+// ============================================================================
+// The MSP is the off-chain backend that actually stores your files.
+// On-chain, we record *metadata* (bucket IDs, file keys, fingerprints).
+// Off-chain, the MSP holds the *actual file bytes* and serves downloads.
+//
+// This file sets up:
+//   - An HTTP client pointing to the MSP backend
+//   - Session management via SIWE (Sign-In With Ethereum)
+//   - Helper functions: health check, info, auth, value propositions
+// ============================================================================
+
+// Point the HTTP client at the MSP's REST API.
 const httpCfg: HttpClientConfig = { baseUrl: NETWORK.mspUrl };
 
-// Initialize a session token for authenticated requests (updated after authentication
-// through SIWE)
+// Session token management.
+// Before authentication this is undefined. After SIWE auth, it holds a JWT-like
+// token that the MSP uses to authorize file uploads and private downloads.
 let sessionToken: string | undefined = undefined;
 
-// Provide session information to the MSP client whenever available
-// Returns a token and user address if authenticated, otherwise undefined
+// The session provider is a callback the MspClient calls on every request.
+// If we have a token, it attaches it to the request headers automatically.
 const sessionProvider = async () =>
   sessionToken ? ({ token: sessionToken, user: { address: address } } as const) : undefined;
 
-// Establish a connection to the Main Storage Provider (MSP) backend
+// MspClient.connect() establishes a connection to the MSP backend.
+// The second argument (sessionProvider) is called before each request to inject auth.
 const mspClient = await MspClient.connect(httpCfg, sessionProvider);
 
 // Retrieve MSP metadata, including its unique ID and version, and log it to the console
@@ -32,8 +47,15 @@ const getMspHealth = async (): Promise<HealthStatus> => {
   return mspHealth;
 };
 
-// Authenticate the user via SIWE (Sign-In With Ethereum) using the connected wallet
-// Once authenticated, store the returned session token and retrieve the user’s profile
+// SIWE Authentication
+// SIWE (Sign-In With Ethereum) proves to the MSP that you own your wallet.
+// Flow:
+//   1. The MSP generates a challenge message
+//   2. Your wallet signs the message (no on-chain tx — just a signature)
+//   3. The MSP verifies the signature and returns a session token
+//   4. All subsequent requests include this token for authorization
+//
+// This is required BEFORE uploading files or accessing private content.
 const authenticateUser = async (): Promise<UserInfo> => {
   console.log('Authenticating user with MSP via SIWE...');
 
@@ -50,7 +72,10 @@ const authenticateUser = async (): Promise<UserInfo> => {
   return profile;
 };
 
-// Retrieve MSP value propositions and select one for bucket creation
+// Value Propositions
+// A value proposition is an MSP's advertised storage terms (pricing, capacity, etc.).
+// When creating a bucket you must select one — it's like choosing a storage plan.
+// Here we just grab the first available one for simplicity.
 const getValueProps = async (): Promise<`0x${string}`> => {
   const valueProps: ValueProp[] = await mspClient.info.getValuePropositions();
   if (!Array.isArray(valueProps) || valueProps.length === 0) {
