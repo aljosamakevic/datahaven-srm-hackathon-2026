@@ -111,6 +111,11 @@ export async function getBucketsFromMSP(): Promise<Bucket[]> {
   return buckets;
 }
 
+export async function getBucketFromMSP(bucketId: string): Promise<Bucket> {
+  const bucket: Bucket = await mspClient.buckets.getBucket(bucketId);
+  return bucket;
+}
+
 export async function waitForBackendBucketEmpty(bucketId: string) {
   const maxAttempts = 144; // 12 minutes total (144 * 5s)
   const delayMs = 5000;

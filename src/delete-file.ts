@@ -33,10 +33,6 @@ async function run() {
   // Wait for backend to process deletion and verify bucket is empty
   await waitForBackendBucketEmpty(bucketId);
 
-  // Delete bucket
-  const isBucketDeletionSuccessful = await deleteBucket(bucketId);
-  console.log('Bucket deletion successful:', isBucketDeletionSuccessful);
-
   await polkadotApi.disconnect();
 }
 
