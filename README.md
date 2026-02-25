@@ -98,9 +98,9 @@ pnpm tsx src/update-bucket-privacy.ts
 
 | Demo | Live | Source |
 |------|------|--------|
-| SDK Demo | [demosdk.datahaven.xyz](https://demosdk.datahaven.xyz/) | [GitHub](https://github.com/nicove68/datahaven-demo-sdk) |
-| NFT Demo | [demonft.datahaven.xyz](https://demonft.datahaven.xyz/) | [GitHub](https://github.com/nicove68/datahaven-demo-nft) |
-| End-to-End Storage Workflow | — | [GitHub](https://github.com/nicove68/datahaven-end-to-end-storage-workflow) |
+| SDK Demo | [demosdk.datahaven.xyz](https://demosdk.datahaven.xyz/) | [GitHub](https://github.com/papermoonio/datahaven-demo-dapp) |
+| NFT Demo | [demonft.datahaven.xyz](https://demonft.datahaven.xyz/) | [GitHub](https://github.com/papermoonio/datahaven-nft-demo-dapp) |
+| End-to-End Storage Workflow | — | [GitHub](https://github.com/datahaven-xyz/datahaven-end-to-end-storage-workflow) |
 
 ## Key Concepts
 
